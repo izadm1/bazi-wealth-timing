@@ -131,7 +131,7 @@ td.hzc{font:700 17px var(--display)}
 .copyrow{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
 .toast{font-size:12.5px;color:var(--jade)}
 svg text{fill:var(--muted);font-size:11px}
-.hidden{display:none}
+.hidden{display:none!important}
 @media (prefers-reduced-motion:no-preference){.fill{transition:width .4s ease}}
 </style>
 </head>
@@ -750,14 +750,12 @@ const VIEWS=['chart','daily','monthly','quarterly','yearly'];
 let VIEW='chart';
 const SEL={date:`${TODAY.y}-${pad(TODAY.m)}-${pad(TODAY.d)}`, month:`${TODAY.y}-${pad(TODAY.m)}`, qy:TODAY.y, q:Math.ceil(TODAY.m/3), year:TODAY.y};
 function setView(){ const h=location.hash.replace('#',''); VIEW=VIEWS.includes(h)?h:'chart';
-  document.querySelectorAll('nav.tabs a').forEach(a=>a.toggleAttribute('aria-current',a.dataset.view===VIEW));
-  document.querySelectorAll('nav.tabs a').forEach(a=>{ if(a.dataset.view===VIEW) a.setAttribute('aria-current','page'); });
+  document.querySelectorAll('nav.tabs a').forEach(a=>{ if(a.dataset.view===VIEW) a.setAttribute('aria-current','page'); else a.removeAttribute('aria-current'); });
   render(); }
 function render(){
   if(!CH) return;
   renderControls();
   const r=$('#report');
-  const who=esc(PROF.name||'This chart')+(PROF.id==='example'||$('#profileSel').value==='example'&&!PROF.name?'':'');
   const body={chart:viewChart,daily:viewDaily,monthly:viewMonthly,quarterly:viewQuarterly,yearly:viewYearly}[VIEW]();
   r.innerHTML=body;
   r.querySelectorAll('[data-goto]').forEach(b=>b.addEventListener('click',()=>{ SEL.date=b.dataset.goto; location.hash='daily'; if(VIEW==='daily') render(); }));
@@ -824,14 +822,14 @@ function viewChart(){
   const unf=an.unfOrder.slice(0,2).map(e=>`<strong class="e${e}">${EL[e]}</strong> (${EL_INFO[e].col})`).join(' and ');
   const nowMs=Date.now(); const cur=luckAt(c,nowMs);
   const luck=c.luck?`<div class="luck">${c.luck.list.map(l=>{ const ps=pillarScore(c,l); const y0=new Date(l.startMs).getUTCFullYear();
-    return `<div class="lp ${l===cur?'now':''}"><div class="age">Age ${Math.floor(l.ageStart)}–${Math.floor(l.ageStart)+9}</div><div class="hz"><span class="e${stemEl(l.s)}">${STEMS[l.s]}</span><span class="e${BR_EL[l.b]}">${BR[l.b]}</span></div><div class="age">${y0}–${y0+10}</div><div class="age">${tenGod(c.dm,l.s).en}</div><div class="sc" style="color:${scoreColor(ps.score)}">${ps.score}</div></div>`; }).join('')}</div>
+    return `<div class="lp ${l===cur?'now':''}"><div class="age">Age ${Math.floor(l.ageStart)}–${Math.floor(l.ageStart)+9}</div><div class="hz"><span class="e${stemEl(l.s)}">${STEMS[l.s]}</span><span class="e${BR_EL[l.b]}">${BR[l.b]}</span></div><div class="age">${y0}–${y0+9}</div><div class="age">${tenGod(c.dm,l.s).en}</div><div class="sc" style="color:${scoreColor(ps.score)}">${ps.score}</div></div>`; }).join('')}</div>
     <p class="note">Luck pillars run ${c.luck.fwd?'forward':'backward'}, starting at age ${Math.floor(c.luck.startYears)} years ${Math.round((c.luck.startYears%1)*12)} months. The number under each is its wealth score; the outlined pillar is the one you are in now.</p>`:'';
   const tzName = typeof c.input.tz==='number' ? `UTC${c.input.tz>=0?'+':''}${c.input.tz}` : c.input.tz;
   const off=c.offMin; const offStr=`UTC${off>=0?'+':'−'}${Math.floor(Math.abs(off)/60)}:${pad(Math.abs(off)%60)}`;
   let timeLine = `Birth recorded as ${fmtD(c.input.y,c.input.m,c.input.d)}${c.input.timeKnown?`, ${pad(c.input.h)}:${pad(c.input.mi)}`:''} (${offStr}).`;
   if(c.solarNote && c.input.timeKnown){ timeLine += ` True solar time at this longitude: ${new Date(c.solarNote.trueMs).toISOString().substr(11,5)}.`; }
   return `<div class="rep"><section class="sheet">
-    ${copyRow(`${esc(PROF.name||'Natal chart')}${$('#profileSel').value==='example'&&!loadProfiles().some(p=>p.name===PROF.name)&&PROF.name==='Example profile'?'<span class="example">Sample</span>':''}`, timeLine)}
+    ${copyRow(`${esc(PROF.name||'Natal chart')}${PROF.name==='Example profile'?'<span class="example">Sample data</span>':''}`, timeLine)}
     <div class="pillars">${pillarCard('Hour 时',P.hour)}${pillarCard('Day 日',P.day,true)}${pillarCard('Month 月',P.month)}${pillarCard('Year 年',P.year)}</div>
     ${c.warnings.map(w=>`<div class="warnbox">${esc(w)}</div>`).join('')}
     <div class="grid2" style="margin-top:16px">
@@ -861,7 +859,7 @@ function viewDaily(){
   const uses=bestUses(di);
   const REC=recommend(c,di,hrs), OUT=outfit(c,di.day);
   const swatch=e=>`<span class="sw b${e}" style="width:16px;height:16px"></span>`;
-  const hourRows=hrs.map(h=>{ const s=h.ps.score; const from=pad(h.from)+':00', to=pad((h.to)%24)+':59'.replace('59','00').replace(':00',':59');
+  const hourRows=hrs.map(h=>{ const s=h.ps.score;
     return `<tr><td class="num">${pad(h.from)}:00–${pad((h.to+24-1)%24)}:59${top.includes(h.hb)?' <span class="tag">Best</span>':''}</td><td class="hzc"><span class="e${stemEl(h.p.s)}">${STEMS[h.p.s]}</span><span class="e${BR_EL[h.p.b]}">${BR[h.p.b]}</span> <span class="note" style="font:12px var(--body)">${ANIMAL[h.p.b]}</span></td><td>${h.ps.stemTG.en}</td><td><span class="mini" style="width:${s*0.6}px;background:${scoreColor(s)}"></span><span class="num">${s}</span></td></tr>`; }).join('');
   return `<div class="rep"><section class="sheet">
     ${copyRow(`${DOW[di.dow]}, ${fmtD(y,m,d)}`, `Daily wealth report for ${esc(PROF.name||'this chart')}`)}
@@ -900,8 +898,9 @@ function viewDaily(){
 // ----- shared helpers for ranges -----
 function rangeDays(c,y0,m0,count){ const out=[]; for(let i=0;i<count;i++){ const yy=y0+Math.floor((m0-1+i)/12), mm=(m0-1+i)%12+1; const n=daysInMonth(yy,mm); for(let d=1;d<=n;d++) out.push(dayInfo(c,yy,mm,d,RTZ)); } return out; }
 function avg(a){ return Math.round(a.reduce((x,y)=>x+y,0)/a.length); }
-function dayList(list,title){
-  return `<h3>${title}</h3><div class="tablewrap"><table><thead><tr><th>Date</th><th>Pillar</th><th>Day type</th><th>Use it for</th><th>Score</th></tr></thead><tbody>${list.map(d=>`<tr><td><button type="button" class="ghost small" data-goto="${d.y}-${pad(d.m)}-${pad(d.d)}">${DOW[d.dow]} ${d.d} ${MON[d.m-1]}</button></td><td class="hzc">${pz(d.day)}</td><td>${d.off.en} ${d.off.zh}</td><td>${bestUses(d).join(', ')}</td><td class="num" style="color:${scoreColor(d.score)};font-weight:600">${d.score}</td></tr>`).join('')}</tbody></table></div>`;
+function avoidList(d){ const a=[d.off.avoid]; TGX[d.ps.stemTG.k].avoid.forEach(x=>a.push(x)); if(d.ps.ints.some(x=>x.type==='clash'&&x.k==='day')) a.push('Partnership disputes'); return a.slice(0,3).join('; '); }
+function dayList(list,title,bad){
+  return `<h3>${title}</h3><div class="tablewrap"><table><thead><tr><th>Date</th><th>Pillar</th><th>Day type</th><th>${bad?'Avoid':'Use it for'}</th><th>Score</th></tr></thead><tbody>${list.map(d=>`<tr><td><button type="button" class="ghost small" data-goto="${d.y}-${pad(d.m)}-${pad(d.d)}">${DOW[d.dow]} ${d.d} ${MON[d.m-1]}</button></td><td class="hzc">${pz(d.day)}</td><td>${d.off.en} ${d.off.zh}</td><td>${bad?avoidList(d):bestUses(d).join(', ')}</td><td class="num" style="color:${scoreColor(d.score)};font-weight:600">${d.score}</td></tr>`).join('')}</tbody></table></div>`;
 }
 function solarMonthsOf(days){
   const seen=[]; days.forEach(d=>{ const k=pz(d.month); let s=seen.find(x=>x.k===k); if(!s){ s={k,p:d.month,days:[]}; seen.push(s);} s.days.push(d); }); return seen;
@@ -910,7 +909,7 @@ function monthCard(c,s){
   const ps=pillarScore(c,s.p); const a=s.days[0], b=s.days[s.days.length-1];
   return `<div class="card"><h4>Solar month ${s.k}</h4><p style="margin:0 0 4px">${chip(ps.score)}</p>
   <p class="note" style="margin:0 0 6px">${ppy(s.p)} · in range ${a.d} ${MON[a.m-1]} – ${b.d} ${MON[b.m-1]}</p>
-  <p style="margin:0"><strong>${ps.stemTG.en}</strong> over <strong>${ps.branchTG.en}</strong>: ${TGX[ps.stemTG.k].h.toLowerCase()}; underneath, ${TGX[ps.branchTG.k].h.toLowerCase()}.</p>
+  <p style="margin:0"><strong>${ps.stemTG.en}</strong>${ps.stemTG.k===ps.branchTG.k?` on both levels: ${TGX[ps.stemTG.k].h.toLowerCase()}, doubled.`:` over <strong>${ps.branchTG.en}</strong>: ${TGX[ps.stemTG.k].h.toLowerCase()}; underneath, ${TGX[ps.branchTG.k].h.toLowerCase()}.`}</p>
   ${ps.ints.length?intList(ps.ints):''}</div>`;
 }
 function calendar(days,y,m){
@@ -946,7 +945,7 @@ function viewMonthly(){
     <h3>Calendar</h3>${calendar(days,y,m)}
   </section>
   <section class="sheet"><h2>Solar months in ${MONTHS[m-1]}</h2><p class="sub">Bazi months change on the solar terms, not on the 1st</p><div class="grid2">${sms.map(s=>monthCard(c,s)).join('')}</div></section>
-  <section class="sheet">${dayList(best,'Best money days')}${worst.length?dayList(worst,'Days to protect cash'):'<h3>Days to protect cash</h3><p>No days fall below neutral this month.</p>'}</section></div>`;
+  <section class="sheet">${dayList(best,'Best money days')}${worst.length?dayList(worst,'Days to protect cash',true):'<h3>Days to protect cash</h3><p>No days fall below neutral this month.</p>'}</section></div>`;
 }
 
 // ----- Quarterly -----
@@ -967,7 +966,7 @@ function viewQuarterly(){
     <h3>Daily trend</h3>${spark(days.map(d=>d.score),labels)}
   </section>
   <section class="sheet"><h2>Solar months this quarter</h2><p class="sub">The monthly energy behind the daily scores</p><div class="grid2">${sms.map(s=>monthCard(c,s)).join('')}</div></section>
-  <section class="sheet">${dayList(best,'Top money days this quarter')}${worst.length?dayList(worst,'Days to protect cash'):''}</section></div>`;
+  <section class="sheet">${dayList(best,'Top money days this quarter')}${worst.length?dayList(worst,'Days to protect cash',true):''}</section></div>`;
 }
 
 // ----- Yearly -----

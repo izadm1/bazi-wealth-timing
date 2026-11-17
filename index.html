@@ -132,6 +132,13 @@ td.hzc{font:700 17px var(--display)}
 .toast{font-size:12.5px;color:var(--jade)}
 svg text{fill:var(--muted);font-size:11px}
 .hidden{display:none!important}
+.acts{display:flex;gap:6px;flex-wrap:wrap}
+.mailform{border:1px solid var(--line);background:var(--paper);border-radius:9px;padding:14px;margin:0 0 16px;display:grid;grid-template-columns:1fr 1fr;gap:10px 14px}
+.mailform .row{display:flex;flex-direction:column;gap:4px}
+.mailform .mfoot{grid-column:1/-1;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.mailform .toast{grid-column:1/-1;margin:0}
+@media (max-width:700px){.mailform{grid-template-columns:1fr}}
+@media print{aside,nav.tabs,#controls,.acts,.mailform{display:none!important}.layout{grid-template-columns:1fr}}
 @media (prefers-reduced-motion:no-preference){.fill{transition:width .4s ease}}
 </style>
 </head>
@@ -178,6 +185,14 @@ svg text{fill:var(--muted);font-size:11px}
             <select id="fZi"><option value="midnight">Day changes at midnight</option><option value="early">Day changes at 11pm</option></select></div>
           <p class="hint">Month and year pillars follow the exact solar terms (节气), with Li Chun starting the year.</p>
         </details>
+        <details class="adv" id="senderBox">
+          <summary>Email sending</summary>
+          <p class="hint">To send reports straight from your Gmail, paste your sender's web-app address and key here (see the setup guide in the project's README). Without them, the Email button opens a draft in your mail app instead.</p>
+          <div class="row"><label for="sUrl">Sender web-app address</label><input id="sUrl" type="url" placeholder="https://script.google.com/macros/s/…/exec"></div>
+          <div class="row"><label for="sKey">Sender key</label><input id="sKey" type="password" autocomplete="off"></div>
+          <button type="button" class="ghost small" id="sSave">Save sender</button>
+          <p class="toast" id="sMsg" role="status"></p>
+        </details>
         <div class="btns">
           <button type="submit">Read chart</button>
           <button type="button" class="ghost" id="saveBtn">Save profile</button>
@@ -200,6 +215,7 @@ svg text{fill:var(--muted);font-size:11px}
   </div>
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <script>
 // ===== Bazi engine (wealth-focused) =====
 const STEMS = ['甲','乙','丙','丁','戊','己','庚','辛','壬','癸'];
@@ -667,10 +683,10 @@ const TODAY=todayParts();
 function band(s){ return s>=75?['s-prime','Prime money time']:s>=62?['s-good','Favourable']:s>=48?['s-neutral','Neutral']:s>=35?['s-care','Be careful']:['s-bad','Protect cash']; }
 function chip(s){ const [c,l]=band(s); return `<span class="chip ${c}"><span class="num">${s}</span> ${l}</span>`; }
 function scoreColor(s){ return s>=75?'var(--good)':s>=62?'var(--jade)':s>=48?'var(--metal)':s>=35?'var(--warn)':'var(--bad)'; }
-function cellBg(s){ const t=Math.max(0,Math.min(1,(s-20)/70)); if(s>=48) return `color-mix(in srgb, var(--good) ${Math.round((s-48)/47*55)+6}%, var(--paper))`; return `color-mix(in srgb, var(--bad) ${Math.round((48-s)/43*45)+6}%, var(--paper))`; }
+function cellBg(s){ if(s>=48) return `rgba(31,122,77,${((s-48)/47*0.45+0.06).toFixed(2)})`; return `rgba(180,35,24,${((48-s)/43*0.38+0.06).toFixed(2)})`; }
 function gauge(s,label){
   const r=48, C=2*Math.PI*r, f=s/100;
-  return `<svg class="gauge" viewBox="0 0 120 120" role="img" aria-label="Wealth score ${s} of 100"><circle cx="60" cy="60" r="${r}" fill="none" stroke="var(--line)" stroke-width="10"/>
+  return `<svg class="gauge" width="118" height="118" viewBox="0 0 120 120" role="img" aria-label="Wealth score ${s} of 100"><circle cx="60" cy="60" r="${r}" fill="none" stroke="var(--line)" stroke-width="10"/>
   <circle cx="60" cy="60" r="${r}" fill="none" stroke="${scoreColor(s)}" stroke-width="10" stroke-linecap="round" stroke-dasharray="${C*f} ${C}" transform="rotate(-90 60 60)"/>
   <text x="60" y="62" text-anchor="middle" style="font-size:30px;font-weight:600;fill:var(--ink)">${s}</text><text x="60" y="82" text-anchor="middle">${label||'wealth score'}</text></svg>`;
 }
@@ -759,8 +775,7 @@ function render(){
   const body={chart:viewChart,daily:viewDaily,monthly:viewMonthly,quarterly:viewQuarterly,yearly:viewYearly}[VIEW]();
   r.innerHTML=body;
   r.querySelectorAll('[data-goto]').forEach(b=>b.addEventListener('click',()=>{ SEL.date=b.dataset.goto; location.hash='daily'; if(VIEW==='daily') render(); }));
-  const cp=r.querySelector('#copyBtn');
-  if(cp) cp.addEventListener('click',async()=>{ const t=r.querySelector('.rep').innerText; try{ await navigator.clipboard.writeText(t); $('#copyMsg').textContent='Report copied.'; }catch(e){ $('#copyMsg').textContent='Copy was blocked by the browser; select the text and copy it manually.'; } });
+  wireReportActions(r);
 }
 function renderControls(){
   const c=$('#controls'); let h='';
@@ -781,7 +796,99 @@ function renderControls(){
   on('#cQY','change',e=>{ const v=+e.target.value; if(v>=1901&&v<=2099){SEL.qy=v; render();} });
   on('#cY','change',e=>{ const v=+e.target.value; if(v>=1901&&v<=2099){SEL.year=v; render();} });
 }
-const copyRow=(title,sub)=>`<div class="copyrow"><div><h2>${title}</h2><p class="sub">${sub}</p></div><div><button type="button" class="ghost small" id="copyBtn">Copy report</button> <span class="toast" id="copyMsg" role="status"></span></div></div>`;
+const copyRow=(title,sub)=>`<div class="copyrow"><div><h2>${title}</h2><p class="sub">${sub}</p></div><div class="acts" data-html2canvas-ignore="true"><button type="button" class="ghost small" id="copyBtn">Copy text</button><button type="button" class="ghost small" id="pdfBtn">Download PDF</button><button type="button" class="small" id="mailBtn" aria-expanded="false" aria-controls="mailForm">Email report</button></div></div>
+<p class="toast" id="copyMsg" role="status" data-html2canvas-ignore="true"></p>
+<form id="mailForm" class="mailform hidden" data-html2canvas-ignore="true" novalidate>
+  <div class="row"><label for="mTo">Recipient email (separate several with commas)</label><input id="mTo" type="text" inputmode="email" autocomplete="email" placeholder="name@example.com"></div>
+  <div class="row"><label for="mNote">Message (optional)</label><input id="mNote" type="text" placeholder="Here is the Bazi report we discussed."></div>
+  <div class="mfoot"><button type="submit" id="mSend">Send report</button><span class="note" id="mMode"></span></div>
+  <p class="toast" id="mailMsg" role="status"></p>
+</form>`;
+// ---------- PDF & email ----------
+const IN_FRAME=(()=>{ try{ return window.self!==window.top; }catch(e){ return true; } })();
+function getSender(){ try{ return JSON.parse(localStorage.getItem('bazi-sender')||'null'); }catch(e){ return null; } }
+function reportMeta(){
+  const rep=$('#report .rep'); const h=rep.querySelector('h2'); const title=(h?h.innerText:'Bazi report').replace(/\s*SAMPLE DATA\s*/i,'').trim();
+  const sub=(rep.querySelector('.sub')||{}).innerText||'';
+  const chip=(rep.querySelector('.chip')||{}).innerText||'';
+  const tags=[...rep.querySelectorAll('.tags .tag')].map(t=>t.innerText);
+  const recs=[...rep.querySelectorAll('ol.rec li strong')].map(t=>t.innerText).slice(0,4);
+  const kind={chart:'Wealth chart',daily:'Daily wealth report',monthly:'Monthly wealth report',quarterly:'Quarterly wealth report',yearly:'Yearly wealth report'}[VIEW];
+  const who=PROF.name||'Bazi';
+  const file=`Bazi-${kind.split(' ')[0]}-${title}`.replace(/[^A-Za-z0-9]+/g,'-').replace(/-+$/,'')+'.pdf';
+  const subject=`${kind} – ${title}${VIEW==='chart'?'':' – '+who}${chip?' – '+chip.replace(/\s+/g,' '):''}`;
+  let body=`${kind}: ${title}\n${sub}\n`;
+  if(chip) body+=`Wealth score: ${chip.replace(/\s+/g,' ')}\n`;
+  if(tags.length) body+=`Best for: ${tags.join(', ')}\n`;
+  if(recs.length) body+=`\nRecommended actions:\n${recs.map((r,i)=>`${i+1}. ${r}`).join('\n')}\n`;
+  body+=`\nThe full report is attached as a PDF.\n\nScores are a rule-based timing guide, not financial advice.`;
+  return {file,subject,body};
+}
+async function makePdf(){
+  if(typeof html2pdf==='undefined') throw new Error('The PDF library did not load. Check your connection and reload the page.');
+  const el=$('#report .rep'); const root=document.documentElement; const prev=root.getAttribute('data-theme');
+  root.setAttribute('data-theme','light');
+  try{
+    return await html2pdf().set({margin:[10,10,12,10],image:{type:'jpeg',quality:0.9},html2canvas:{scale:2,useCORS:true,backgroundColor:'#ffffff',logging:false,onclone:doc=>{ const cs=doc.defaultView.getComputedStyle(doc.documentElement); const fix=v=>v.replace(/var\((--[\w-]+)\)/g,(m,k)=>cs.getPropertyValue(k).trim()||'#888');
+        doc.querySelectorAll('.luck').forEach(l=>{ l.style.flexWrap='wrap'; l.style.overflow='visible'; });
+        doc.querySelectorAll('.tablewrap').forEach(t=>t.style.overflow='visible');
+        doc.querySelectorAll('svg').forEach(sv=>{ const r=sv.getBoundingClientRect(); if(r.width){ sv.setAttribute('width',Math.round(r.width)); sv.setAttribute('height',Math.round(r.height)); } });
+        doc.querySelectorAll('svg, svg *').forEach(n=>{ ['fill','stroke'].forEach(at=>{ const v=n.getAttribute(at); if(v&&v.includes('var(')) n.setAttribute(at,fix(v)); }); const st=n.getAttribute('style'); if(st&&st.includes('var(')) n.setAttribute('style',fix(st)); if(n.tagName.toLowerCase()==='text'&&!n.getAttribute('fill')) n.setAttribute('fill',cs.getPropertyValue('--muted').trim()); }); }},
+      jsPDF:{unit:'mm',format:'a4',orientation:'portrait'},pagebreak:{mode:['legacy'],avoid:['tr','.hero','.cal','.luck','.pillars']}}).from(el).outputPdf('blob');
+  } finally { if(prev==null) root.removeAttribute('data-theme'); else root.setAttribute('data-theme',prev); }
+}
+function saveBlob(blob,name){ const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; document.body.appendChild(a); a.click(); setTimeout(()=>{URL.revokeObjectURL(a.href); a.remove();},4000); }
+const blobToB64=b=>new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(String(r.result).split(',')[1]); r.onerror=rej; r.readAsDataURL(b); });
+const EMAIL_RE=/^[^@\s,;]+@[^@\s,;]+\.[^@\s,;]+$/;
+function wireReportActions(r){
+  const msg=$('#copyMsg');
+  const cp=r.querySelector('#copyBtn');
+  if(cp) cp.addEventListener('click',async()=>{ const t=r.querySelector('.rep').innerText; try{ await navigator.clipboard.writeText(t); msg.textContent='Report text copied.'; }catch(e){ msg.textContent='Copy was blocked by the browser; select the text and copy it manually.'; } });
+  const pb=r.querySelector('#pdfBtn');
+  if(pb) pb.addEventListener('click',async()=>{
+    if(IN_FRAME){ msg.textContent='Downloads are blocked inside this preview. Open izadm1.github.io/bazi-wealth-timing to download the PDF.'; return; }
+    pb.disabled=true; msg.textContent='Building PDF…';
+    try{ const m=reportMeta(); saveBlob(await makePdf(),m.file); msg.textContent=`Downloaded ${m.file}.`; }catch(e){ msg.textContent=e.message||'Could not build the PDF.'; }
+    pb.disabled=false; });
+  const mb=r.querySelector('#mailBtn'), form=r.querySelector('#mailForm');
+  if(mb&&form){
+    const snd=getSender();
+    r.querySelector('#mMode').textContent = snd&&snd.url ? 'Sends directly from your Gmail with the PDF attached.' : (navigator.canShare? 'Opens your share sheet with the PDF; choose Mail.' : 'Downloads the PDF and opens an email draft to attach it to.');
+    try{ const last=localStorage.getItem('bazi-last-to'); if(last) r.querySelector('#mTo').value=last; }catch(e){}
+    mb.addEventListener('click',()=>{ const open=form.classList.toggle('hidden')===false; mb.setAttribute('aria-expanded',open); if(open) r.querySelector('#mTo').focus(); });
+    form.addEventListener('submit',async e=>{
+      e.preventDefault();
+      const out=r.querySelector('#mailMsg'), btn=r.querySelector('#mSend');
+      const to=r.querySelector('#mTo').value.split(/[,;\s]+/).filter(Boolean);
+      if(!to.length||!to.every(x=>EMAIL_RE.test(x))){ out.textContent='Enter a valid email address, for example name@example.com.'; return; }
+      if(to.length>5){ out.textContent='Send to at most 5 recipients at a time.'; return; }
+      if(IN_FRAME){ out.textContent='Sending is blocked inside this preview. Open izadm1.github.io/bazi-wealth-timing to email reports.'; return; }
+      try{ localStorage.setItem('bazi-last-to',to.join(', ')); }catch(_){}
+      const m=reportMeta(); const note=r.querySelector('#mNote').value.trim(); const body=(note?note+'\n\n':'')+m.body;
+      btn.disabled=true; out.textContent='Building PDF…';
+      try{
+        const blob=await makePdf(); const s=getSender();
+        if(s&&s.url){
+          out.textContent='Sending…';
+          await fetch(s.url,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({key:s.key,to:to.join(','),subject:m.subject,body,filename:m.file,pdf:await blobToB64(blob)})});
+          out.textContent=`Sent to ${to.join(', ')} from your Gmail. It will appear in your Gmail Sent folder within a minute.`;
+        } else {
+          const file=new File([blob],m.file,{type:'application/pdf'});
+          if(navigator.canShare&&navigator.canShare({files:[file]})){
+            try{ await navigator.clipboard.writeText(to.join(', ')); }catch(_){}
+            await navigator.share({files:[file],title:m.subject,text:`To: ${to.join(', ')}\n\n${body}`});
+            out.textContent=`Choose Mail and paste ${to.join(', ')} into the To field (it is on your clipboard).`;
+          } else {
+            saveBlob(blob,m.file);
+            location.href=`mailto:${encodeURIComponent(to.join(','))}?subject=${encodeURIComponent(m.subject)}&body=${encodeURIComponent(body+'\n\n[Attach '+m.file+' from your Downloads folder]')}`;
+            out.textContent=`Downloaded ${m.file} and opened an email to ${to.join(', ')}. Attach the PDF and press Send.`;
+          }
+        }
+      }catch(err){ out.textContent = err&&err.name==='AbortError' ? 'Sharing cancelled.' : (err.message||'Could not send the report.'); }
+      btn.disabled=false;
+    });
+  }
+}
 
 // ----- Chart view -----
 function pillarCard(label,p,isDay){
@@ -1034,6 +1141,10 @@ $('#saveBtn').addEventListener('click',()=>{
 $('#profileSel').addEventListener('change',e=>{ const v=e.target.value; const p=v==='example'?EXAMPLE:loadProfiles().find(x=>x.id===v); if(p){ setForm(p); run(p);} });
 $('#delBtn').addEventListener('click',()=>{ const v=$('#profileSel').value; if(v==='example') return; storeProfiles(loadProfiles().filter(x=>x.id!==v)); fillProfiles('example'); setForm(EXAMPLE); run(EXAMPLE); });
 window.addEventListener('hashchange',setView);
+(function(){ const s=getSender(); if(s){ $('#sUrl').value=s.url||''; $('#sKey').value=s.key||''; }
+  $('#sSave').addEventListener('click',()=>{ const url=$('#sUrl').value.trim(), key=$('#sKey').value;
+    if(url && !/^https:\/\/script\.google\.com\/macros\/s\/.+\/exec$/.test(url)){ $('#sMsg').textContent='The address should look like https://script.google.com/macros/s/…/exec'; return; }
+    try{ if(url) localStorage.setItem('bazi-sender',JSON.stringify({url,key})); else localStorage.removeItem('bazi-sender'); $('#sMsg').textContent=url?'Sender saved in this browser.':'Sender removed; Email will open a draft instead.'; render(); }catch(e){ $('#sMsg').textContent='This browser blocked saving.'; } }); })();
 (function init(){ const l=loadProfiles(); const p=l.length?l[0]:EXAMPLE; fillProfiles(p.id||'example'); setForm(p); CH=computeChart(toOpts(p)); PROF=p; setView(); })();
 </script>
 </body>
